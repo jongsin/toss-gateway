@@ -22,6 +22,9 @@ info:
     게이트웨이 자체 에러 메시지는 `Accept-Language`(또는 `?lang=ko|en`) 로 다국어를 지원합니다.
   contact:
     name: toss-gateway
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
   - url: /
     description: 기본 (base path 미설정). GATEWAY_BASE_PATH 설정 시 해당 prefix 하위로 제공됩니다.
@@ -52,6 +55,7 @@ paths:
   /v1/auth/token:
     post:
       tags: [Auth]
+      operationId: issueToken
       summary: OAuth2 액세스 토큰 발급
       description: |
         `client_id`/`client_secret` 으로 토스 액세스 토큰을 발급받아 그대로 반환합니다.
@@ -83,22 +87,33 @@ paths:
   /v1/orderbook:
     get:
       tags: [Market Data]
+      operationId: getOrderbook
       summary: 호가 조회
       parameters:
         - $ref: '#/components/parameters/Symbol'
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/prices:
     get:
       tags: [Market Data]
+      operationId: getPrices
       summary: 현재가 조회
       parameters:
         - $ref: '#/components/parameters/Symbols'
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/trades:
     get:
       tags: [Market Data]
+      operationId: getTrades
       summary: 최근 체결 내역 조회
       parameters:
         - $ref: '#/components/parameters/Symbol'
@@ -106,19 +121,29 @@ paths:
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/price-limits:
     get:
       tags: [Market Data]
+      operationId: getPriceLimits
       summary: 상/하한가 조회
       parameters:
         - $ref: '#/components/parameters/Symbol'
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/candles:
     get:
       tags: [Market Data]
+      operationId: getCandles
       summary: 캔들 차트 조회 (1분봉/일봉)
       parameters:
         - $ref: '#/components/parameters/Symbol'
@@ -135,30 +160,45 @@ paths:
         - name: adjusted
           in: query
           schema: { type: boolean, default: true }
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/stocks:
     get:
       tags: [Stock Info]
+      operationId: getStocks
       summary: 종목 기본 정보 조회
       parameters:
         - $ref: '#/components/parameters/Symbols'
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/stocks/{symbol}/warnings:
     get:
       tags: [Stock Info]
+      operationId: getStockWarnings
       summary: 매수 유의사항 조회
       parameters:
         - name: symbol
           in: path
           required: true
           schema: { type: string }
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/exchange-rate:
     get:
       tags: [Market Info]
+      operationId: getExchangeRate
       summary: 환율 조회 (KRW↔USD)
       parameters:
         - name: baseCurrency
@@ -172,33 +212,53 @@ paths:
         - name: dateTime
           in: query
           schema: { type: string, format: date-time }
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/market-calendar/KR:
     get:
       tags: [Market Info]
+      operationId: getKrMarketCalendar
       summary: 국내 장 운영 정보 조회
       parameters:
         - { name: date, in: query, schema: { type: string, format: date } }
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/market-calendar/US:
     get:
       tags: [Market Info]
+      operationId: getUsMarketCalendar
       summary: 해외 장 운영 정보 조회
       parameters:
         - { name: date, in: query, schema: { type: string, format: date } }
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/accounts:
     get:
       tags: [Account]
+      operationId: getAccounts
       summary: 계좌 목록 조회 (accountSeq 진입점)
-      responses: { $ref: '#/components/responses/_market' }
+      responses:
+        '200': { $ref: '#/components/responses/_market' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/holdings:
     get:
       tags: [Asset]
+      operationId: getHoldings
       summary: 보유 주식 조회
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
@@ -206,11 +266,16 @@ paths:
           in: query
           required: false
           schema: { type: string }
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/orders:
     get:
       tags: [Order History]
+      operationId: listOrders
       summary: 주문 목록 조회
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
@@ -223,9 +288,14 @@ paths:
         - { name: to, in: query, schema: { type: string, format: date-time } }
         - { name: cursor, in: query, schema: { type: string } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     post:
       tags: [Order]
+      operationId: createOrder
       summary: 주문 생성
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
@@ -241,20 +311,30 @@ paths:
               usMarketBuyAmount:
                 summary: 해외주식 소수점 시장가 매수 (금액)
                 value: { symbol: AAPL, side: BUY, orderType: MARKET, orderAmount: "100.5" }
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/orders/{orderId}:
     get:
       tags: [Order History]
+      operationId: getOrder
       summary: 주문 상세 조회
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
         - $ref: '#/components/parameters/OrderId'
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/orders/{orderId}/modify:
     post:
       tags: [Order]
+      operationId: modifyOrder
       summary: 주문 정정
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
@@ -265,20 +345,30 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/OrderModifyRequest' }
             example: { orderType: LIMIT, quantity: "15", price: "71000" }
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/orders/{orderId}/cancel:
     post:
       tags: [Order]
+      operationId: cancelOrder
       summary: 주문 취소
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
         - $ref: '#/components/parameters/OrderId'
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/buying-power:
     get:
       tags: [Order Info]
+      operationId: getBuyingPower
       summary: 매수 가능 금액 조회
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
@@ -286,24 +376,38 @@ paths:
           in: query
           required: true
           schema: { $ref: '#/components/schemas/Currency' }
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sellable-quantity:
     get:
       tags: [Order Info]
+      operationId: getSellableQuantity
       summary: 판매 가능 수량 조회
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
         - $ref: '#/components/parameters/Symbol'
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/commissions:
     get:
       tags: [Order Info]
+      operationId: getCommissions
       summary: 매매 수수료 조회
       parameters:
         - $ref: '#/components/parameters/AccountHeader'
-      responses: { $ref: '#/components/responses/_account' }
+      responses:
+        '200': { $ref: '#/components/responses/_account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
 components:
   securitySchemes:
