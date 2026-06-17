@@ -1,0 +1,461 @@
+openapi: 3.1.0
+info:
+  title: 토스증권 Open API Gateway
+  version: 1.0.0
+  description: |
+    토스증권 Open API 를 멀티유저 환경에서 안전하게 중계하는 **무상태(stateless) 게이트웨이** 입니다.
+
+    ## 인증 (Stateless 멀티유저)
+    - `POST /v1/auth/token` 으로 `client_id`/`client_secret` 을 전달하면 게이트웨이가 토스로부터
+      액세스 토큰을 발급받아 **그대로 반환** 합니다. 게이트웨이는 인증정보와 토큰을 **저장하지 않습니다.**
+    - 이후 모든 API 는 발급받은 토큰을 `Authorization: Bearer {access_token}` 헤더로 지참하여 호출합니다.
+    - 계좌·자산·주문 API 는 `X-Tossinvest-Account: {accountSeq}` 헤더도 함께 전달합니다.
+      `accountSeq` 는 `GET /v1/accounts` 응답에서 얻습니다.
+
+    ## Rate Limits
+    게이트웨이는 토스 한도를 **초과하지 않도록 클라이언트×그룹 단위로 사전 게이팅** 합니다.
+    한도 초과 시 게이트웨이가 토스로 요청을 보내기 전에 `429 rate-limit-exceeded` 를 반환하며,
+    `Retry-After` 헤더와 `X-RateLimit-*` 헤더를 함께 제공합니다.
+
+    ## 에러
+    모든 에러는 토스 포맷과 동일한 envelope `{ "error": { requestId, code, message, data? } }` 로 응답합니다.
+    게이트웨이 자체 에러 메시지는 `Accept-Language`(또는 `?lang=ko|en`) 로 다국어를 지원합니다.
+  contact:
+    name: toss-gateway
+servers:
+  - url: /
+    description: 기본 (base path 미설정). GATEWAY_BASE_PATH 설정 시 해당 prefix 하위로 제공됩니다.
+tags:
+  - name: Auth
+    description: OAuth2 액세스 토큰 발급 (무상태)
+  - name: Market Data
+    description: 시세 (호가/현재가/체결/상하한가/캔들)
+  - name: Stock Info
+    description: 종목 기본 정보 · 매수 유의사항
+  - name: Market Info
+    description: 환율 · 장 운영 캘린더
+  - name: Account
+    description: 계좌 목록 (accountSeq 진입점)
+  - name: Asset
+    description: 보유 자산
+  - name: Order
+    description: 주문 생성 · 정정 · 취소
+  - name: Order History
+    description: 주문 목록 · 상세 조회
+  - name: Order Info
+    description: 매수 가능 금액 · 판매 가능 수량 · 수수료
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/auth/token:
+    post:
+      tags: [Auth]
+      summary: OAuth2 액세스 토큰 발급
+      description: |
+        `client_id`/`client_secret` 으로 토스 액세스 토큰을 발급받아 그대로 반환합니다.
+        게이트웨이는 인증정보·토큰을 저장하지 않습니다. JSON 또는 form-urlencoded 본문을 지원합니다.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+            example:
+              client_id: c_01HXYZABCDEFG123456789
+              client_secret: s_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: 발급 성공 (OAuth2 표준 형식)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /v1/orderbook:
+    get:
+      tags: [Market Data]
+      summary: 호가 조회
+      parameters:
+        - $ref: '#/components/parameters/Symbol'
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/prices:
+    get:
+      tags: [Market Data]
+      summary: 현재가 조회
+      parameters:
+        - $ref: '#/components/parameters/Symbols'
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/trades:
+    get:
+      tags: [Market Data]
+      summary: 최근 체결 내역 조회
+      parameters:
+        - $ref: '#/components/parameters/Symbol'
+        - name: count
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/price-limits:
+    get:
+      tags: [Market Data]
+      summary: 상/하한가 조회
+      parameters:
+        - $ref: '#/components/parameters/Symbol'
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/candles:
+    get:
+      tags: [Market Data]
+      summary: 캔들 차트 조회 (1분봉/일봉)
+      parameters:
+        - $ref: '#/components/parameters/Symbol'
+        - name: interval
+          in: query
+          required: true
+          schema: { type: string, enum: [1m, 1d] }
+        - name: count
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+        - name: before
+          in: query
+          schema: { type: string, format: date-time }
+        - name: adjusted
+          in: query
+          schema: { type: boolean, default: true }
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/stocks:
+    get:
+      tags: [Stock Info]
+      summary: 종목 기본 정보 조회
+      parameters:
+        - $ref: '#/components/parameters/Symbols'
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/stocks/{symbol}/warnings:
+    get:
+      tags: [Stock Info]
+      summary: 매수 유의사항 조회
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema: { type: string }
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/exchange-rate:
+    get:
+      tags: [Market Info]
+      summary: 환율 조회 (KRW↔USD)
+      parameters:
+        - name: baseCurrency
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Currency' }
+        - name: quoteCurrency
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Currency' }
+        - name: dateTime
+          in: query
+          schema: { type: string, format: date-time }
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/market-calendar/KR:
+    get:
+      tags: [Market Info]
+      summary: 국내 장 운영 정보 조회
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/market-calendar/US:
+    get:
+      tags: [Market Info]
+      summary: 해외 장 운영 정보 조회
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/accounts:
+    get:
+      tags: [Account]
+      summary: 계좌 목록 조회 (accountSeq 진입점)
+      responses: { $ref: '#/components/responses/_market' }
+
+  /v1/holdings:
+    get:
+      tags: [Asset]
+      summary: 보유 주식 조회
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - name: symbol
+          in: query
+          required: false
+          schema: { type: string }
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/orders:
+    get:
+      tags: [Order History]
+      summary: 주문 목록 조회
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - name: status
+          in: query
+          required: true
+          schema: { type: string, enum: [OPEN, CLOSED] }
+        - { name: symbol, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses: { $ref: '#/components/responses/_account' }
+    post:
+      tags: [Order]
+      summary: 주문 생성
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderCreateRequest' }
+            examples:
+              krLimitBuy:
+                summary: 국내주식 지정가 매수
+                value: { clientOrderId: my-order-001, symbol: "005930", side: BUY, orderType: LIMIT, quantity: "10", price: "70000" }
+              usMarketBuyAmount:
+                summary: 해외주식 소수점 시장가 매수 (금액)
+                value: { symbol: AAPL, side: BUY, orderType: MARKET, orderAmount: "100.5" }
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/orders/{orderId}:
+    get:
+      tags: [Order History]
+      summary: 주문 상세 조회
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - $ref: '#/components/parameters/OrderId'
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/orders/{orderId}/modify:
+    post:
+      tags: [Order]
+      summary: 주문 정정
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderModifyRequest' }
+            example: { orderType: LIMIT, quantity: "15", price: "71000" }
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/orders/{orderId}/cancel:
+    post:
+      tags: [Order]
+      summary: 주문 취소
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - $ref: '#/components/parameters/OrderId'
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/buying-power:
+    get:
+      tags: [Order Info]
+      summary: 매수 가능 금액 조회
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - name: currency
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Currency' }
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/sellable-quantity:
+    get:
+      tags: [Order Info]
+      summary: 판매 가능 수량 조회
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+        - $ref: '#/components/parameters/Symbol'
+      responses: { $ref: '#/components/responses/_account' }
+
+  /v1/commissions:
+    get:
+      tags: [Order Info]
+      summary: 매매 수수료 조회
+      parameters:
+        - $ref: '#/components/parameters/AccountHeader'
+      responses: { $ref: '#/components/responses/_account' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 토스에서 발급받은 액세스 토큰. `POST /v1/auth/token` 으로 발급합니다.
+
+  parameters:
+    Symbol:
+      name: symbol
+      in: query
+      required: true
+      description: 종목 심볼. KRX 6자리 숫자(예: 005930) / US 영문 티커(예: AAPL).
+      schema: { type: string, pattern: '^[A-Za-z0-9.\-]+$' }
+    Symbols:
+      name: symbols
+      in: query
+      required: true
+      description: 종목 심볼 목록(콤마 구분, 최대 200). 예 `005930,000660`.
+      schema: { type: string, pattern: '^[A-Za-z0-9.,\-]+$' }
+    AccountHeader:
+      name: X-Tossinvest-Account
+      in: header
+      required: true
+      description: 계좌 식별자(accountSeq). `GET /v1/accounts` 응답값을 사용합니다.
+      schema: { type: integer, format: int64, minimum: 1 }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string }
+
+  schemas:
+    Currency:
+      type: string
+      enum: [KRW, USD]
+      description: 통화 코드. 클라이언트는 unknown enum 값을 허용해야 합니다.
+    TokenRequest:
+      type: object
+      required: [client_id, client_secret]
+      properties:
+        grant_type: { type: string, enum: [client_credentials], default: client_credentials }
+        client_id: { type: string }
+        client_secret: { type: string, format: password }
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string, description: JWT 액세스 토큰 }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, format: int64, description: 만료까지 남은 초 }
+    OrderCreateRequest:
+      oneOf:
+        - $ref: '#/components/schemas/OrderCreateQuantityBased'
+        - $ref: '#/components/schemas/OrderCreateAmountBased'
+      description: 수량 기반(KR/US) 또는 금액 기반(US MARKET 전용, 소수점) 주문.
+    OrderCreateQuantityBased:
+      type: object
+      required: [symbol, side, orderType, quantity]
+      properties:
+        clientOrderId: { type: string, maxLength: 36, pattern: '^[a-zA-Z0-9\-_]+$', description: 멱등성 키(10분 유효) }
+        symbol: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        orderType: { type: string, enum: [LIMIT, MARKET] }
+        timeInForce: { type: string, enum: [DAY, CLS], default: DAY }
+        quantity: { type: string, pattern: '^\d+$', description: 정수 수량 }
+        price: { type: string, description: 'LIMIT 시 필수. KR 정수+호가단위 / US 소수점' }
+        confirmHighValueOrder: { type: boolean, default: false, description: 1억원 이상 주문 시 true 필요 }
+    OrderCreateAmountBased:
+      type: object
+      required: [symbol, side, orderType, orderAmount]
+      properties:
+        clientOrderId: { type: string, maxLength: 36, pattern: '^[a-zA-Z0-9\-_]+$' }
+        symbol: { type: string, description: US 티커 }
+        side: { type: string, enum: [BUY, SELL] }
+        orderType: { type: string, enum: [MARKET] }
+        orderAmount: { type: string, description: 달러 금액(정규장 전용) }
+        confirmHighValueOrder: { type: boolean, default: false }
+    OrderModifyRequest:
+      type: object
+      required: [orderType]
+      properties:
+        orderType: { type: string, enum: [LIMIT, MARKET] }
+        quantity: { type: string, description: 'KR 필수(양의 정수) / US 전달불가' }
+        price: { type: string, description: 'LIMIT 시 필수' }
+        confirmHighValueOrder: { type: boolean, default: false }
+    ApiResponse:
+      type: object
+      required: [result]
+      properties:
+        result:
+          description: |
+            성공 페이로드. 게이트웨이는 토스 응답을 무손실 전달합니다.
+            상세 스키마는 토스증권 Open API 문서를 참조하세요.
+          type: object
+          additionalProperties: true
+    ApiError:
+      type: object
+      required: [requestId, code, message]
+      properties:
+        requestId: { type: string, description: 응답 헤더 X-Request-Id 와 동일 }
+        code: { type: string, description: 'flat string 에러 코드 (예: invalid-request, order-not-found, rate-limit-exceeded)' }
+        message: { type: string }
+        data:
+          type: [object, "null"]
+          additionalProperties: true
+          description: 에러 해결 힌트(코드별 상이)
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/ApiError' }
+
+  responses:
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: 인증 실패 (토큰 누락/무효/만료)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    TooManyRequests:
+      description: Rate limit 초과. Retry-After 후 재시도.
+      headers:
+        Retry-After: { schema: { type: integer }, description: 재시도 권장 초 }
+        X-RateLimit-Limit: { schema: { type: integer } }
+        X-RateLimit-Remaining: { schema: { type: integer } }
+        X-RateLimit-Reset: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    # 합성 응답 묶음: 시세·종목·시장·계좌 공통 (토큰만 필요)
+    _market:
+      description: 성공
+      headers:
+        X-RateLimit-Limit: { schema: { type: integer } }
+        X-RateLimit-Remaining: { schema: { type: integer } }
+        X-Request-Id: { schema: { type: string } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    # 계좌·자산·주문 공통 (토큰 + 계좌 헤더)
+    _account:
+      description: 성공
+      headers:
+        X-RateLimit-Limit: { schema: { type: integer } }
+        X-Request-Id: { schema: { type: string } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }

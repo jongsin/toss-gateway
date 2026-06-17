@@ -1,0 +1,15 @@
+# VCS / 메타
+.git
+.gitignore
+
+# 테스트/문서 (빌드 산출물에 불필요)
+*_test.go
+*.md
+
+# 로컬 빌드 산출물
+gateway
+bin/
+dist/
+
+# OS
+.DS_Store

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>토스증권 Open API Gateway — API 문서</title>
+  <!--
+    Swagger UI 5.17.14 (pinned). CSS/JS are self-hosted: embedded into the gateway
+    binary and served same-origin, so this page has no external dependency.
+    License: Apache-2.0, (c) SmartBear Software (see internal/openapi/assets/LICENSE.md).
+  -->
+  <link rel="stylesheet" href="__CSS_URL__" />
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="__JS_URL__"></script>
+  <!-- 부트스트랩은 인라인이 아닌 셀프 호스팅 스크립트로 분리한다(CSP script-src 'self', N-B 보강).
+       스펙 URL 은 data-spec-url 속성으로 전달된다(HTML 속성은 script-src 적용 대상 아님). -->
+  <script src="__INIT_URL__" data-spec-url="__SPEC_URL__"></script>
+</body>
+</html>
