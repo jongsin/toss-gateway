@@ -222,5 +222,6 @@ toss-gateway/
 
 ## 라이선스 / 고지
 
-- 임베드된 Swagger UI 정적 자산(v5.17.14)은 **Apache License 2.0**, © SmartBear Software 입니다. 상세는 [`internal/openapi/assets/LICENSE.md`](internal/openapi/assets/LICENSE.md) 참고.
+- **본 게이트웨이는 [Apache License 2.0](LICENSE) 으로 배포됩니다.** Copyright © 2026 jongsin.
+- 임베드된 Swagger UI 정적 자산(v5.17.14)도 Apache-2.0, © SmartBear Software 입니다. 상세는 [`internal/openapi/assets/LICENSE.md`](internal/openapi/assets/LICENSE.md) 참고.
 - 본 게이트웨이는 토스증권 Open API 의 비공식 클라이언트/중계자이며, 토스가 인증·인가의 최종 권위입니다.
