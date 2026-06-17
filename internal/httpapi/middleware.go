@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -117,13 +118,30 @@ func (s *Server) recoverMW(next http.Handler) http.Handler {
 			if rec := recover(); rec != nil {
 				s.logger.Error("panic recovered",
 					slog.String("requestId", requestIDFrom(r)),
-					slog.Any("panic", rec),
+					slog.String("panic", panicSummary(rec)),
 				)
 				writeGatewayError(w, r, http.StatusInternalServerError, "internal-error", nil)
 			}
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// panicSummary 는 패닉 값을 타입/메시지 수준으로 축약한다(민감 값 전체 로깅 방지, L-03).
+func panicSummary(rec any) string {
+	var msg string
+	switch v := rec.(type) {
+	case error:
+		msg = v.Error()
+	case string:
+		msg = v
+	default:
+		return fmt.Sprintf("%T", rec)
+	}
+	if len(msg) > 200 {
+		msg = msg[:200]
+	}
+	return msg
 }
 
 // corsMW 는 화이트리스트 기반 CORS 를 처리한다.
