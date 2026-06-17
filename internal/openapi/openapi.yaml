@@ -318,7 +318,7 @@ components:
       name: symbol
       in: query
       required: true
-      description: 종목 심볼. KRX 6자리 숫자(예: 005930) / US 영문 티커(예: AAPL).
+      description: '종목 심볼. KRX 6자리 숫자(예: 005930) / US 영문 티커(예: AAPL).'
       schema: { type: string, pattern: '^[A-Za-z0-9.\-]+$' }
     Symbols:
       name: symbols
